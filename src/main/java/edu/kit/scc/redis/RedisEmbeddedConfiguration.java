@@ -27,9 +27,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import redis.embedded.RedisExecProvider;
 import redis.embedded.RedisServer;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
@@ -58,6 +61,10 @@ public class RedisEmbeddedConfiguration {
   @Value("${spring.redis.port}")
   private int redisPort;
 
+  @Value("${cdmi.metadata.redisDir}")
+  private String redisDir;
+
+  
   private static RedisServer redisServer;
 
   /**
@@ -68,11 +75,24 @@ public class RedisEmbeddedConfiguration {
   @PostConstruct
   public void init() throws IOException {
     log.debug("Set-up in-memory redis...");
-    redisServer = new RedisServer(redisPort);
+    //redisServer = new RedisServer(redisPort);
+    
+    Path redisDirPath = Paths.get(redisDir);
+    Files.createDirectories(redisDirPath);
+    
+    redisServer = RedisServer.builder()
+        .redisExecProvider(RedisExecProvider.defaultProvider())
+        .port(redisPort)
+        .setting("save 3600 1")
+        .setting("appendonly yes")
+        .setting("appendfsync always")
+        .setting("dir " + redisDir)
+        .build();
+    
     try {
       redisServer.start();
     } catch (Exception ex) {
-      log.warn("Redis servier already running?");
+      log.error("Failed to start redis server: {}", ex);
     }
 
     log.debug("Set-up root container...");
